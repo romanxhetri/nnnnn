@@ -1,0 +1,7 @@
+{
+  "name": "Potato and Friends Restaurant",
+  "description": "A modern, interactive web application for the 'Potato and Friends' fast-food restaurant, featuring online ordering, user profiles, loyalty programs, and AI-powered assistants.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
