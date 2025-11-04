@@ -1,4 +1,5 @@
 
+
 export interface CustomizationOption {
   name: string;
   priceModifier: number;
@@ -10,6 +11,12 @@ export interface Customization {
   options: CustomizationOption[];
 }
 
+export interface Review {
+  userName: string;
+  rating: number; // 1-5
+  comment: string;
+}
+
 export interface MenuItem {
   id: string;
   name: string;
@@ -18,6 +25,7 @@ export interface MenuItem {
   image: string;
   category: string;
   rating: number;
+  reviews?: Review[];
   spicyLevel: 0 | 1 | 2 | 3;
   dietaryTags: ('Vegetarian' | 'Vegan' | 'Gluten-Free')[];
   customizations?: Customization[];
@@ -50,10 +58,11 @@ export interface User {
     accessories: string[];
   };
   isAdmin: boolean;
+  completedChallenges?: string[]; // Array of challenge IDs
 }
 
 export interface Order {
-  id: string;
+  id:string;
   userId: string | 'guest';
   items: CartItem[];
   subtotal: number;
@@ -74,5 +83,14 @@ export interface PromoCode {
   isActive: boolean;
 }
 
+export interface DailyChallenge {
+  id: string;
+  title: string;
+  description: string;
+  menuItemId: string; // ID of the required menu item
+  pointBonus: number;
+}
+
+
 export type Page = 'home' | 'checkout' | 'profile' | 'admin' | 'tracking' | 'leaderboard';
-export type ModalType = 'login' | 'itemDetail' | 'aiChat' | 'aiVoice' | 'askChef' | 'confirm' | 'adminMenu' | 'adminPromo';
+export type ModalType = 'login' | 'itemDetail' | 'aiChat' | 'aiVoice' | 'askChef' | 'confirm' | 'adminMenu' | 'adminPromo' | 'avatarCustomization' | 'generateAd';

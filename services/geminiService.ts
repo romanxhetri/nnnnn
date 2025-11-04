@@ -1,13 +1,9 @@
-import { GoogleGenAI, Type, Chat, LiveSession, LiveServerMessage, Modality } from "@google/genai";
+import { GoogleGenAI, Type, Chat, LiveSession, LiveServerMessage, Modality, OperationsGetVideosOperationResponse } from "@google/genai";
 import { MenuItem } from '../types';
 
-// Using a fallback API key for deployment convenience, as requested by the user.
-// It's strongly recommended to use environment variables for production.
-const API_KEY = process.env.API_KEY || 'AIzaSyCwN9FXmnSqiLWwbFLQ0us-DiuTOp_-TvE';
-
-if (API_KEY === 'AIzaSyCwN9FXmnSqiLWwbFLQ0us-DiuTOp_-TvE') {
-    console.warn("Using a fallback API key. For a real application, please set the API_KEY environment variable in your deployment settings (e.g., Netlify).");
-}
+// The API key is injected by the execution environment (e.g., AI Studio).
+// The user will be prompted to select a key if one is not available, especially for Veo.
+const API_KEY = process.env.API_KEY;
 
 const ai = new GoogleGenAI({ apiKey: API_KEY });
 
@@ -138,7 +134,6 @@ export const createLiveSession = async (
             onclose: callbacks.onClose,
         },
         config: {
-            // FIX: Use Modality.AUDIO enum for responseModalities as per API guidelines.
             responseModalities: [Modality.AUDIO],
             inputAudioTranscription: {},
             outputAudioTranscription: {},
@@ -172,4 +167,62 @@ export const createLiveSession = async (
             }]
         }
     });
+};
+
+export const generateVideoPrompt = async (item: MenuItem): Promise<string> => {
+    try {
+        const prompt = `Create a short, exciting, and visually descriptive prompt for a 10-second social media video ad for a food item. The prompt should be suitable for an AI video generation model.
+
+        Food Item Name: ${item.name}
+        Description: ${item.description}
+
+        Example Prompts:
+        - "A cinematic slow-motion shot of golden, crispy fries being drenched in rich, melted cheese sauce, with steam rising."
+        - "A vibrant, fast-paced montage of fresh jalapeños being sliced, chili simmering, and then poured over a mountain of fries."
+
+        Generate a new prompt for the given food item.`;
+
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+        });
+        return response.text.trim();
+    } catch (error) {
+        console.error("Error generating video prompt:", error);
+        return `A delicious-looking video of ${item.name}.`; // Fallback prompt
+    }
+};
+
+
+export const generateVideoAd = async (prompt: string): Promise<OperationsGetVideosOperationResponse | null> => {
+    try {
+        // Create a new instance right before the call to ensure the latest API key is used.
+        const veoAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+        let operation = await veoAI.models.generateVideos({
+            model: 'veo-3.1-fast-generate-preview',
+            prompt: prompt,
+            config: {
+                numberOfVideos: 1,
+                resolution: '720p',
+                aspectRatio: '9:16' // Portrait for social media
+            }
+        });
+
+        while (!operation.done) {
+            // Wait for 10 seconds before polling again
+            await new Promise(resolve => setTimeout(resolve, 10000));
+            operation = await veoAI.operations.getVideosOperation({ operation: operation });
+        }
+
+        return operation;
+
+    } catch (error) {
+        console.error("Error generating video ad:", error);
+        // Special handling for API key not found error
+        if (error instanceof Error && error.message.includes("Requested entity was not found.")) {
+             throw new Error("API key error. Please select a valid API key.");
+        }
+        return null;
+    }
 };
