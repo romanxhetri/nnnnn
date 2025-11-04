@@ -798,13 +798,13 @@ const AdminPromoModal: React.FC<{
     );
 };
 
-// Fix: Resolve TypeScript error by defining a named interface for aistudio.
-interface AIStudio {
-    hasSelectedApiKey: () => Promise<boolean>;
-    openSelectKey: () => Promise<void>;
-}
-
+// Fix: Moved the AIStudio interface into `declare global` to resolve the "subsequent property declarations" error.
 declare global {
+    interface AIStudio {
+        hasSelectedApiKey: () => Promise<boolean>;
+        openSelectKey: () => Promise<void>;
+    }
+
     interface Window {
         aistudio?: AIStudio;
     }
