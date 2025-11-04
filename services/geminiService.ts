@@ -1,14 +1,15 @@
-
 import { GoogleGenAI, Type, Chat, LiveSession, LiveServerMessage, Modality } from "@google/genai";
 import { MenuItem } from '../types';
 
-const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : undefined;
+// Using a fallback API key for deployment convenience, as requested by the user.
+// It's strongly recommended to use environment variables for production.
+const API_KEY = process.env.API_KEY || 'AIzaSyCwN9FXmnSqiLWwbFLQ0us-DiuTOp_-TvE';
 
-if (!apiKey) {
-    console.warn("API_KEY environment variable not set. AI features will not work.");
+if (API_KEY === 'AIzaSyCwN9FXmnSqiLWwbFLQ0us-DiuTOp_-TvE') {
+    console.warn("Using a fallback API key. For a real application, please set the API_KEY environment variable in your deployment settings (e.g., Netlify).");
 }
 
-const ai = new GoogleGenAI({ apiKey: apiKey || "" });
+const ai = new GoogleGenAI({ apiKey: API_KEY });
 
 export const getChefRecommendation = async (menu: MenuItem[], query: string) => {
     try {

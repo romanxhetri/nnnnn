@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
@@ -113,20 +112,6 @@ const StarIcon: React.FC<{ className?: string }> = ({ className }) => (
 
 // MAIN APP COMPONENT
 export default function App() {
-    // API Key check for deployment environments
-    const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : undefined;
-    if (!apiKey) {
-        return (
-            <div className="flex items-center justify-center h-screen bg-brand-cream">
-                <div className="text-center p-8 bg-white shadow-lg rounded-lg border-2 border-red-300">
-                    <h1 className="text-2xl font-bold text-red-600">Configuration Error</h1>
-                    <p className="mt-2 text-brand-dark">The AI features cannot be initialized because the API key is missing.</p>
-                    <p className="mt-2 text-gray-600">Please make sure the <code className="bg-red-100 text-red-800 p-1 rounded">API_KEY</code> environment variable is set in your deployment settings.</p>
-                </div>
-            </div>
-        );
-    }
-    
     // STATE MANAGEMENT
     const [currentUser, setCurrentUser] = useLocalStorage<User | null>('currentUser', null);
     const [allUsers, setAllUsers] = useLocalStorage<User[]>('allUsers', USERS);
@@ -799,10 +784,11 @@ const Leaderboard: React.FC = () => {
         <div className="max-w-2xl mx-auto animate-fadeInUp">
             <h1 className="text-3xl font-bold mb-6 text-center">Spud Points Leaderboard</h1>
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
-                {/* FIX: The `spudPoints` property on user objects from `LEADERBOARD_DATA` can be undefined. Provide a fallback value of 0 to ensure the sort comparison always operates on numbers, preventing a TypeError. */}
-                {[...LEADERBOARD_DATA].sort((a,b) => (b.spudPoints ?? 0) - (a.spudPoints ?? 0)).map((user, index) => (
+                {/* FIX: The `spudPoints` property can be undefined for items in `LEADERBOARD_DATA`. Added a fallback value of 0 to prevent a runtime error during the sort comparison. */}
+                {[...LEADERBOARD_DATA].sort((a,b) => (b.spudPoints != null ? b.spudPoints : 0) - (a.spudPoints != null ? a.spudPoints : 0)).map((user, index) => (
                     <div key={index} className={`flex items-center p-4 gap-4 ${index % 2 !== 0 ? 'bg-brand-cream/50' : ''}`}>
                         <span className={`font-bold text-lg w-10 text-center ${index < 3 ? 'text-brand-orange' : ''}`}>{['🥇', '🥈', '🥉'][index] || `${index + 1}.`}</span>
+                        {/* FIX: Handle potentially undefined name and spudPoints to avoid rendering issues and provide sensible defaults. */}
                         <span className="flex-grow font-semibold">{user.name ?? 'Unknown User'}</span>
                         <span className="font-bold text-brand-orange">{user.spudPoints ?? 0} pts</span>
                     </div>
