@@ -146,265 +146,9 @@ const TrophyIcon: React.FC<{ className?: string }> = ({ className }) => (
     </svg>
 );
 
-// MAIN APP COMPONENT
-export default function App() {
-    // STATE MANAGEMENT
-    const [currentUser, setCurrentUser] = useLocalStorage<User | null>('currentUser', null);
-    const [allUsers, setAllUsers] = useLocalStorage<User[]>('allUsers', USERS);
-    const [cart, setCart] = useLocalStorage<CartItem[]>('cart', []);
-    const [orders, setOrders] = useLocalStorage<Order[]>('orders', []);
-    const [menuItems, setMenuItems] = useLocalStorage<MenuItem[]>('menuItems', MENU_ITEMS);
-    const [promoCodes, setPromoCodes] = useLocalStorage<PromoCode[]>('promoCodes', PROMO_CODES);
-    const [dailySpecialId, setDailySpecialId] = useLocalStorage<string>('dailySpecialId', DAILY_SPECIAL_ID);
-
-    const [currentPage, setCurrentPage] = useState<Page>('home');
-    const [activeModal, setActiveModal] = useState<ModalType | null>(null);
-    const [modalData, setModalData] = useState<any>(null);
-    const [toasts, setToasts] = useState<{ id: number; message: string; icon: string }[]>([]);
-
-    // DERIVED STATE
-    const dailySpecial = useMemo(() => menuItems.find(item => item.id === dailySpecialId), [menuItems, dailySpecialId]);
-    const cartTotal = useMemo(() => cart.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0), [cart]);
-
-    // EFFECT TO SYNC CURRENT USER STATE IF ALLUSERS CHANGES (E.G. ADMIN EDITS)
-    useEffect(() => {
-        if (currentUser) {
-            const updatedUser = allUsers.find(u => u.id === currentUser.id);
-            if (updatedUser) {
-                setCurrentUser(updatedUser);
-            }
-        }
-    }, [allUsers, currentUser?.id]);
-
-
-    // HANDLERS & LOGIC
-    const showToast = useCallback((message: string, icon: string = '✅') => {
-        const id = Date.now();
-        setToasts(prev => [...prev.slice(-4), { id, message, icon }]);
-        setTimeout(() => {
-            setToasts(prev => prev.filter(t => t.id !== id));
-        }, 3000);
-    }, []);
-
-    const handleNavigation = (page: Page) => {
-        setCurrentPage(page);
-        window.scrollTo(0, 0);
-    };
-    
-    const handleOpenItemModal = useCallback((item: MenuItem) => {
-        setModalData(item);
-        setActiveModal('itemDetail');
-    }, []);
-
-    const handleLogout = () => {
-        setCurrentUser(null);
-        handleNavigation('home');
-    };
-
-    const addToCart = useCallback((item: MenuItem, quantity: number, selectedCustomizations: Record<string, CustomizationOption | CustomizationOption[]>) => {
-        let finalPrice = item.price;
-        for (const key in selectedCustomizations) {
-            const selection = selectedCustomizations[key];
-            if (Array.isArray(selection)) {
-                selection.forEach(opt => finalPrice += opt.priceModifier);
-            } else if (selection) {
-                finalPrice += (selection as CustomizationOption).priceModifier;
-            }
-        }
-
-        const newCartItem: CartItem = {
-            ...item,
-            quantity,
-            selectedCustomizations,
-            finalPrice,
-            cartItemId: Date.now().toString()
-        };
-
-        setCart(prev => [...prev, newCartItem]);
-        showToast(`${item.name} added to cart!`, '🛒');
-        setActiveModal(null);
-    }, [setCart, showToast]);
-
-    const findItemAndAddToCart = useCallback((itemName: string, quantity: number) => {
-        const itemToAdd = menuItems.find(mi => mi.name.toLowerCase() === itemName.toLowerCase());
-        if (itemToAdd) {
-            addToCart(itemToAdd, quantity, {});
-            return true;
-        }
-        return false;
-    }, [menuItems, addToCart]);
-
-    const removeFromCart = (cartItemId: string) => {
-        setCart(prev => prev.filter(item => item.cartItemId !== cartItemId));
-    };
-
-    const updateCartQuantity = (cartItemId: string, newQuantity: number) => {
-        if (newQuantity <= 0) {
-            removeFromCart(cartItemId);
-        } else {
-            setCart(prev => prev.map(item => item.cartItemId === cartItemId ? { ...item, quantity: newQuantity } : item));
-        }
-    };
-    
-    // ADMIN HANDLERS
-    const handleAddMenuItem = (newItem: Omit<MenuItem, 'id' | 'rating' | 'reviews'>) => {
-        const fullNewItem: MenuItem = {
-            ...newItem,
-            id: `menu-${Date.now()}`,
-            rating: 0, // New items start with 0 rating
-            reviews: [],
-        };
-        setMenuItems(prev => [...prev, fullNewItem]);
-        showToast('Menu item added!', '🍴');
-        setActiveModal(null);
-    };
-    
-    const handleUpdateMenuItem = (updatedItem: MenuItem) => {
-        setMenuItems(prev => prev.map(item => item.id === updatedItem.id ? updatedItem : item));
-        showToast('Menu item updated!', '👍');
-        setActiveModal(null);
-    };
-
-    const handleDeleteMenuItem = (itemId: string) => {
-        if (window.confirm('Are you sure you want to delete this menu item?')) {
-            setMenuItems(prev => prev.filter(item => item.id !== itemId));
-            showToast('Menu item deleted.', '🗑️');
-        }
-    };
-    
-    // RENDER LOGIC
-    const renderPage = () => {
-        switch (currentPage) {
-            case 'home': return <HomePage dailySpecial={dailySpecial} menuItems={menuItems} onOrderItem={handleOpenItemModal} dailyChallenge={DAILY_CHALLENGE} currentUser={currentUser} setActiveModal={setActiveModal} />;
-            case 'checkout': return <CheckoutPage cart={cart} cartTotal={cartTotal} currentUser={currentUser} setCurrentUser={setCurrentUser} allUsers={allUsers} setAllUsers={setAllUsers} setOrders={setOrders} setCart={setCart} showToast={showToast} handleNavigation={handleNavigation} setActiveModal={setActiveModal} setModalData={setModalData} promoCodes={promoCodes} />;
-            // Fix: Cannot find name 'UserProfile'.
-            case 'profile': return currentUser ? <UserProfile 
-                user={currentUser} 
-                badges={BADGES} 
-                orders={orders.filter(o => o.userId === currentUser.id)}
-                onReorder={(items) => {
-                    setCart(prev => [...prev, ...items.map(item => ({...item, cartItemId: `${Date.now()}-${item.id}-${Math.random()}`}))]);
-                    showToast('Items from past order added to cart!', '🛒');
-                    setModalData({ show: true });
-                }}
-                onCustomizeClick={() => {
-                    setModalData(currentUser);
-                    setActiveModal('avatarCustomization');
-                }}
-            /> : <HomePage dailySpecial={dailySpecial} menuItems={menuItems} onOrderItem={handleOpenItemModal} dailyChallenge={DAILY_CHALLENGE} currentUser={currentUser} setActiveModal={setActiveModal} />;
-            case 'admin': return currentUser?.isAdmin ? <AdminDashboard 
-                users={allUsers} 
-                orders={orders} 
-                menu={menuItems} 
-                promos={promoCodes} 
-                setPromos={setPromoCodes} 
-                dailySpecialId={dailySpecialId} 
-                setDailySpecialId={setDailySpecialId} 
-                setActiveModal={setActiveModal} 
-                setModalData={setModalData}
-                onDeleteItem={handleDeleteMenuItem}
-            /> : <h1 className="text-center text-red-500 text-2xl">Access Denied</h1>;
-            // Fix: Cannot find name 'OrderTrackingPage'.
-            case 'tracking': return <OrderTrackingPage order={modalData as Order} />;
-            // Fix: Cannot find name 'Leaderboard'.
-            case 'leaderboard': return <Leaderboard />;
-            default: return <HomePage dailySpecial={dailySpecial} menuItems={menuItems} onOrderItem={handleOpenItemModal} dailyChallenge={DAILY_CHALLENGE} currentUser={currentUser} setActiveModal={setActiveModal} />;
-        }
-    };
-
-    const handleUpdateUser = (updatedUser: User) => {
-        setCurrentUser(updatedUser);
-        setAllUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
-    };
-
-    return (
-        <div className="min-h-screen flex flex-col font-sans">
-            {/* Fix: Cannot find name 'Header'. */}
-            <Header
-                user={currentUser}
-                onLoginClick={() => setActiveModal('login')}
-                onLogout={handleLogout}
-                cartItemCount={cart.reduce((sum, item) => sum + item.quantity, 0)}
-                onCartClick={() => setModalData({ show: true })}
-                onNavigate={handleNavigation}
-            />
-            <main className="flex-grow container mx-auto px-4 py-8">
-                {renderPage()}
-            </main>
-            {/* Fix: Cannot find name 'Footer'. */}
-            <Footer onNavigate={handleNavigation} />
-            {/* Fix: Cannot find name 'CartSidebar'. */}
-            <CartSidebar 
-              show={modalData?.show} 
-              onClose={() => setModalData({ show: false })} 
-              cart={cart} 
-              total={cartTotal} 
-              onUpdateQuantity={updateCartQuantity}
-              onRemove={removeFromCart}
-              onCheckout={() => { setModalData({show: false}); handleNavigation('checkout');}}
-             />
-
-            {activeModal && (
-                // Fix: Cannot find name 'Modal'.
-                <Modal onClose={() => {setActiveModal(null); setModalData(null);}}>
-                    {/* Fix: Cannot find name 'AuthModal'. */}
-                    {activeModal === 'login' && <AuthModal allUsers={allUsers} onLogin={setCurrentUser} onClose={() => setActiveModal(null)} />}
-                    {/* Fix: Cannot find name 'ItemDetailModal'. */}
-                    {activeModal === 'itemDetail' && <ItemDetailModal item={modalData as MenuItem} onAddToCart={addToCart} />}
-                    {/* Fix: Cannot find name 'OrderConfirmation'. */}
-                    {activeModal === 'confirm' && <OrderConfirmation order={modalData as Order} onTrack={() => { setActiveModal(null); setModalData(modalData); handleNavigation('tracking'); }} />}
-                    {/* Fix: Cannot find name 'AiAssistantModal'. */}
-                    {activeModal === 'aiChat' && <AiAssistantModal menuItems={menuItems} cart={cart} cartTotal={cartTotal} findItemAndAddToCart={findItemAndAddToCart} />}
-                    {/* Fix: Cannot find name 'VoiceAssistantModal'. */}
-                    {activeModal === 'aiVoice' && <VoiceAssistantModal findItemAndAddToCart={findItemAndAddToCart} />}
-                    {/* Fix: Cannot find name 'AskTheChefModal'. */}
-                    {activeModal === 'askChef' && <AskTheChefModal menuItems={menuItems} />}
-                     {/* Fix: Cannot find name 'AvatarCustomizationModal'. */}
-                     {activeModal === 'avatarCustomization' && <AvatarCustomizationModal 
-                        user={modalData as User} 
-                        badges={BADGES}
-                        onSave={(updatedUser) => {
-                            handleUpdateUser(updatedUser);
-                            showToast("Avatar updated!", '😎');
-                            setActiveModal(null);
-                        }}
-                     />}
-                    {activeModal === 'adminMenu' && <AdminMenuModal 
-                        item={modalData as MenuItem | null} 
-                        onSave={handleUpdateMenuItem} 
-                        onAdd={handleAddMenuItem}
-                    />}
-                    {/* Fix: Cannot find name 'AdminPromoModal'. */}
-                    {activeModal === 'adminPromo' && <AdminPromoModal promo={modalData as PromoCode | null} onSave={(updatedPromo) => {
-                        setPromoCodes(prev => prev.map(p => p.code === updatedPromo.code ? updatedPromo : p));
-                        setActiveModal(null);
-                    }} onAdd={(newPromo) => {
-                        setPromoCodes(prev => [...prev, newPromo]);
-                        setActiveModal(null);
-                    }}/>}
-                    {/* Fix: Cannot find name 'GenerateAdModal'. */}
-                    {activeModal === 'generateAd' && <GenerateAdModal item={modalData as MenuItem} showToast={showToast} />}
-                </Modal>
-            )}
-
-            {/* Fix: Cannot find name 'ToastContainer'. */}
-            <ToastContainer toasts={toasts} />
-
-            <div className="fixed bottom-4 right-4 flex flex-col gap-3 z-40">
-                <button onClick={() => setActiveModal('aiVoice')} className="bg-brand-green text-white w-16 h-16 rounded-full shadow-lg flex items-center justify-center hover:bg-brand-green/90 transition-transform transform hover:scale-110">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" /></svg>
-                </button>
-                 <button onClick={() => setActiveModal('aiChat')} className="bg-brand-orange text-white w-16 h-16 rounded-full shadow-lg flex items-center justify-center hover:bg-brand-orange/90 transition-transform transform hover:scale-110">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM9.7 12.3c-.39.39-1.02.39-1.41 0L6 10.01l-2.29 2.29c-.39.39-1.02.39-1.41 0-.39-.39-.39-1.02 0-1.41l2.29-2.29-2.29-2.29c-.39-.39-.39-1.02 0-1.41.39-.39 1.02-.39 1.41 0l2.29 2.29 2.29-2.29c.39-.39 1.02-.39 1.41 0 .39.39.39 1.02 0 1.41L8.41 9l2.29 2.29c.39.39.39 1.03 0 1.42zM18 11h-6c-.55 0-1-.45-1-1s.45-1 1-1h6c.55 0 1 .45 1 1s-.45 1-1 1zm0-4h-6c-.55 0-1-.45-1-1s.45-1 1-1h6c.55 0 1 .45 1 1s-.45 1-1 1z"/></svg>
-                </button>
-            </div>
-        </div>
-    );
-}
-
+// Fix: Moved component definitions before the main App component to resolve "Cannot find name" errors due to declaration order.
 // SUB-COMPONENTS (Defined outside main App to prevent re-renders)
 
-// Fix: Add definitions for all missing components.
 const Header: React.FC<{
     user: User | null;
     onLoginClick: () => void;
@@ -1054,12 +798,15 @@ const AdminPromoModal: React.FC<{
     );
 };
 
+// Fix: Resolve TypeScript error by defining a named interface for aistudio.
+interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+}
+
 declare global {
     interface Window {
-        aistudio?: {
-            hasSelectedApiKey: () => Promise<boolean>;
-            openSelectKey: () => Promise<void>;
-        };
+        aistudio?: AIStudio;
     }
 }
 
@@ -1863,3 +1610,242 @@ const CheckoutPage: React.FC<{
         </div>
     );
 };
+
+// MAIN APP COMPONENT
+export default function App() {
+    // STATE MANAGEMENT
+    const [currentUser, setCurrentUser] = useLocalStorage<User | null>('currentUser', null);
+    const [allUsers, setAllUsers] = useLocalStorage<User[]>('allUsers', USERS);
+    const [cart, setCart] = useLocalStorage<CartItem[]>('cart', []);
+    const [orders, setOrders] = useLocalStorage<Order[]>('orders', []);
+    const [menuItems, setMenuItems] = useLocalStorage<MenuItem[]>('menuItems', MENU_ITEMS);
+    const [promoCodes, setPromoCodes] = useLocalStorage<PromoCode[]>('promoCodes', PROMO_CODES);
+    const [dailySpecialId, setDailySpecialId] = useLocalStorage<string>('dailySpecialId', DAILY_SPECIAL_ID);
+
+    const [currentPage, setCurrentPage] = useState<Page>('home');
+    const [activeModal, setActiveModal] = useState<ModalType | null>(null);
+    const [modalData, setModalData] = useState<any>(null);
+    const [toasts, setToasts] = useState<{ id: number; message: string; icon: string }[]>([]);
+
+    // DERIVED STATE
+    const dailySpecial = useMemo(() => menuItems.find(item => item.id === dailySpecialId), [menuItems, dailySpecialId]);
+    const cartTotal = useMemo(() => cart.reduce((sum, item) => sum + item.finalPrice * item.quantity, 0), [cart]);
+
+    // EFFECT TO SYNC CURRENT USER STATE IF ALLUSERS CHANGES (E.G. ADMIN EDITS)
+    useEffect(() => {
+        if (currentUser) {
+            const updatedUser = allUsers.find(u => u.id === currentUser.id);
+            if (updatedUser) {
+                setCurrentUser(updatedUser);
+            }
+        }
+    }, [allUsers, currentUser?.id]);
+
+
+    // HANDLERS & LOGIC
+    const showToast = useCallback((message: string, icon: string = '✅') => {
+        const id = Date.now();
+        setToasts(prev => [...prev.slice(-4), { id, message, icon }]);
+        setTimeout(() => {
+            setToasts(prev => prev.filter(t => t.id !== id));
+        }, 3000);
+    }, []);
+
+    const handleNavigation = (page: Page) => {
+        setCurrentPage(page);
+        window.scrollTo(0, 0);
+    };
+    
+    const handleOpenItemModal = useCallback((item: MenuItem) => {
+        setModalData(item);
+        setActiveModal('itemDetail');
+    }, []);
+
+    const handleLogout = () => {
+        setCurrentUser(null);
+        handleNavigation('home');
+    };
+
+    const addToCart = useCallback((item: MenuItem, quantity: number, selectedCustomizations: Record<string, CustomizationOption | CustomizationOption[]>) => {
+        let finalPrice = item.price;
+        for (const key in selectedCustomizations) {
+            const selection = selectedCustomizations[key];
+            if (Array.isArray(selection)) {
+                selection.forEach(opt => finalPrice += opt.priceModifier);
+            } else if (selection) {
+                finalPrice += (selection as CustomizationOption).priceModifier;
+            }
+        }
+
+        const newCartItem: CartItem = {
+            ...item,
+            quantity,
+            selectedCustomizations,
+            finalPrice,
+            cartItemId: Date.now().toString()
+        };
+
+        setCart(prev => [...prev, newCartItem]);
+        showToast(`${item.name} added to cart!`, '🛒');
+        setActiveModal(null);
+    }, [setCart, showToast]);
+
+    const findItemAndAddToCart = useCallback((itemName: string, quantity: number) => {
+        const itemToAdd = menuItems.find(mi => mi.name.toLowerCase() === itemName.toLowerCase());
+        if (itemToAdd) {
+            addToCart(itemToAdd, quantity, {});
+            return true;
+        }
+        return false;
+    }, [menuItems, addToCart]);
+
+    const removeFromCart = (cartItemId: string) => {
+        setCart(prev => prev.filter(item => item.cartItemId !== cartItemId));
+    };
+
+    const updateCartQuantity = (cartItemId: string, newQuantity: number) => {
+        if (newQuantity <= 0) {
+            removeFromCart(cartItemId);
+        } else {
+            setCart(prev => prev.map(item => item.cartItemId === cartItemId ? { ...item, quantity: newQuantity } : item));
+        }
+    };
+    
+    // ADMIN HANDLERS
+    const handleAddMenuItem = (newItem: Omit<MenuItem, 'id' | 'rating' | 'reviews'>) => {
+        const fullNewItem: MenuItem = {
+            ...newItem,
+            id: `menu-${Date.now()}`,
+            rating: 0, // New items start with 0 rating
+            reviews: [],
+        };
+        setMenuItems(prev => [...prev, fullNewItem]);
+        showToast('Menu item added!', '🍴');
+        setActiveModal(null);
+    };
+    
+    const handleUpdateMenuItem = (updatedItem: MenuItem) => {
+        setMenuItems(prev => prev.map(item => item.id === updatedItem.id ? updatedItem : item));
+        showToast('Menu item updated!', '👍');
+        setActiveModal(null);
+    };
+
+    const handleDeleteMenuItem = (itemId: string) => {
+        if (window.confirm('Are you sure you want to delete this menu item?')) {
+            setMenuItems(prev => prev.filter(item => item.id !== itemId));
+            showToast('Menu item deleted.', '🗑️');
+        }
+    };
+    
+    // RENDER LOGIC
+    const renderPage = () => {
+        switch (currentPage) {
+            case 'home': return <HomePage dailySpecial={dailySpecial} menuItems={menuItems} onOrderItem={handleOpenItemModal} dailyChallenge={DAILY_CHALLENGE} currentUser={currentUser} setActiveModal={setActiveModal} />;
+            case 'checkout': return <CheckoutPage cart={cart} cartTotal={cartTotal} currentUser={currentUser} setCurrentUser={setCurrentUser} allUsers={allUsers} setAllUsers={setAllUsers} setOrders={setOrders} setCart={setCart} showToast={showToast} handleNavigation={handleNavigation} setActiveModal={setActiveModal} setModalData={setModalData} promoCodes={promoCodes} />;
+            case 'profile': return currentUser ? <UserProfile 
+                user={currentUser} 
+                badges={BADGES} 
+                orders={orders.filter(o => o.userId === currentUser.id)}
+                onReorder={(items) => {
+                    setCart(prev => [...prev, ...items.map(item => ({...item, cartItemId: `${Date.now()}-${item.id}-${Math.random()}`}))]);
+                    showToast('Items from past order added to cart!', '🛒');
+                    setModalData({ show: true });
+                }}
+                onCustomizeClick={() => {
+                    setModalData(currentUser);
+                    setActiveModal('avatarCustomization');
+                }}
+            /> : <HomePage dailySpecial={dailySpecial} menuItems={menuItems} onOrderItem={handleOpenItemModal} dailyChallenge={DAILY_CHALLENGE} currentUser={currentUser} setActiveModal={setActiveModal} />;
+            case 'admin': return currentUser?.isAdmin ? <AdminDashboard 
+                users={allUsers} 
+                orders={orders} 
+                menu={menuItems} 
+                promos={promoCodes} 
+                setPromos={setPromoCodes} 
+                dailySpecialId={dailySpecialId} 
+                setDailySpecialId={setDailySpecialId} 
+                setActiveModal={setActiveModal} 
+                setModalData={setModalData}
+                onDeleteItem={handleDeleteMenuItem}
+            /> : <h1 className="text-center text-red-500 text-2xl">Access Denied</h1>;
+            case 'tracking': return <OrderTrackingPage order={modalData as Order} />;
+            case 'leaderboard': return <Leaderboard />;
+            default: return <HomePage dailySpecial={dailySpecial} menuItems={menuItems} onOrderItem={handleOpenItemModal} dailyChallenge={DAILY_CHALLENGE} currentUser={currentUser} setActiveModal={setActiveModal} />;
+        }
+    };
+
+    const handleUpdateUser = (updatedUser: User) => {
+        setCurrentUser(updatedUser);
+        setAllUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+    };
+
+    return (
+        <div className="min-h-screen flex flex-col font-sans">
+            <Header
+                user={currentUser}
+                onLoginClick={() => setActiveModal('login')}
+                onLogout={handleLogout}
+                cartItemCount={cart.reduce((sum, item) => sum + item.quantity, 0)}
+                onCartClick={() => setModalData({ show: true })}
+                onNavigate={handleNavigation}
+            />
+            <main className="flex-grow container mx-auto px-4 py-8">
+                {renderPage()}
+            </main>
+            <Footer onNavigate={handleNavigation} />
+            <CartSidebar 
+              show={modalData?.show} 
+              onClose={() => setModalData({ show: false })} 
+              cart={cart} 
+              total={cartTotal} 
+              onUpdateQuantity={updateCartQuantity}
+              onRemove={removeFromCart}
+              onCheckout={() => { setModalData({show: false}); handleNavigation('checkout');}}
+             />
+
+            {activeModal && (
+                <Modal onClose={() => {setActiveModal(null); setModalData(null);}}>
+                    {activeModal === 'login' && <AuthModal allUsers={allUsers} onLogin={setCurrentUser} onClose={() => setActiveModal(null)} />}
+                    {activeModal === 'itemDetail' && <ItemDetailModal item={modalData as MenuItem} onAddToCart={addToCart} />}
+                    {activeModal === 'confirm' && <OrderConfirmation order={modalData as Order} onTrack={() => { setActiveModal(null); setModalData(modalData); handleNavigation('tracking'); }} />}
+                    {activeModal === 'aiChat' && <AiAssistantModal menuItems={menuItems} cart={cart} cartTotal={cartTotal} findItemAndAddToCart={findItemAndAddToCart} />}
+                    {activeModal === 'aiVoice' && <VoiceAssistantModal findItemAndAddToCart={findItemAndAddToCart} />}
+                    {activeModal === 'askChef' && <AskTheChefModal menuItems={menuItems} />}
+                     {activeModal === 'avatarCustomization' && <AvatarCustomizationModal 
+                        user={modalData as User} 
+                        badges={BADGES}
+                        onSave={(updatedUser) => {
+                            handleUpdateUser(updatedUser);
+                            showToast("Avatar updated!", '😎');
+                            setActiveModal(null);
+                        }}
+                     />}
+                    {activeModal === 'adminMenu' && <AdminMenuModal 
+                        item={modalData as MenuItem | null} 
+                        onSave={handleUpdateMenuItem} 
+                        onAdd={handleAddMenuItem}
+                    />}
+                    {activeModal === 'adminPromo' && <AdminPromoModal promo={modalData as PromoCode | null} onSave={(updatedPromo) => {
+                        setPromoCodes(prev => prev.map(p => p.code === updatedPromo.code ? updatedPromo : p));
+                        setActiveModal(null);
+                    }} onAdd={(newPromo) => {
+                        setPromoCodes(prev => [...prev, newPromo]);
+                        setActiveModal(null);
+                    }}/>}
+                    {activeModal === 'generateAd' && <GenerateAdModal item={modalData as MenuItem} showToast={showToast} />}
+                </Modal>
+            )}
+
+            <ToastContainer toasts={toasts} />
+
+            <div className="fixed bottom-4 right-4 flex flex-col gap-3 z-40">
+                <button onClick={() => setActiveModal('aiVoice')} className="bg-brand-green text-white w-16 h-16 rounded-full shadow-lg flex items-center justify-center hover:bg-brand-green/90 transition-transform transform hover:scale-110">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" /></svg>
+                </button>
+                 <button onClick={() => setActiveModal('aiChat')} className="bg-brand-orange text-white w-16 h-16 rounded-full shadow-lg flex items-center justify-center hover:bg-brand-orange/90 transition-transform transform hover:scale-110">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM9.7 12.3c-.39.39-1.02.39-1.41 0L6 10.01l-2.29 2.29c-.39.39-1.02.39-1.41 0-.39-.39-.39-1.02 0-1.41l2.29-2.29-2.29-2.29c-.39-.39-.39-1.02 0-1.41.39-.39 1.02-.39 1.41 0l2.29 2.29 2.29-2.29c.39-.39 1.02-.39 1.41 0 .39.39.39 1.02 0 1.41L8.41 9l2.29 2.29c.39.39.39 1.03 0 1.42zM18 11h-6c-.55 0-1-.45-1-1s.45-1 1-1h6c.55 0 1 .45 1 1s-.45 1-1 1zm0-4h-6c-.55 0-1-.45-1-1s.45-1 1-1h6c.55 0 1 .45 1 1s-.45 1-1 1z"/></svg>
+                </button>
+            </div>
+        </div>
+    );
+}
