@@ -2,13 +2,11 @@ import { GoogleGenAI, Type, Chat, LiveSession, LiveServerMessage, Modality, Oper
 import { MenuItem } from '../types';
 
 // The API key is injected by the execution environment (e.g., AI Studio).
-// The user will be prompted to select a key if one is not available, especially for Veo.
-const API_KEY = process.env.API_KEY;
-
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+// For deployments on platforms like Netlify, this must be set as an environment variable.
 
 export const getChefRecommendation = async (menu: MenuItem[], query: string) => {
     try {
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const menuString = menu.map(item => `${item.name}: ${item.description}`).join('\n');
         const prompt = `You are a helpful chef at "Potato and Friends". A customer is asking for a recommendation. Their query is: "${query}". Based on our menu below, what would you recommend? Also answer any location-based questions if they ask. \n\nMenu:\n${menuString}`;
 
@@ -40,6 +38,7 @@ export const getChefRecommendation = async (menu: MenuItem[], query: string) => 
 
 export const getNutritionalInfo = async (item: MenuItem) => {
     try {
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: `Estimate the nutritional information for a restaurant dish called "${item.name}" with the description: "${item.description}". Provide values for calories, protein (g), carbs (g), and fat (g).`,
@@ -67,6 +66,7 @@ export const getNutritionalInfo = async (item: MenuItem) => {
 };
 
 export const createChatSession = (): Chat => {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     return ai.chats.create({
         model: 'gemini-2.5-flash',
         config: {
@@ -125,6 +125,7 @@ export const createLiveSession = async (
         onClose: (event: CloseEvent) => void;
     }
 ): Promise<LiveSession> => {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     return ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         callbacks: {
@@ -171,6 +172,7 @@ export const createLiveSession = async (
 
 export const generateVideoPrompt = async (item: MenuItem): Promise<string> => {
     try {
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const prompt = `Create a short, exciting, and visually descriptive prompt for a 10-second social media video ad for a food item. The prompt should be suitable for an AI video generation model.
 
         Food Item Name: ${item.name}
