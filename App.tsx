@@ -1,5 +1,7 @@
 
 
+
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
@@ -256,7 +258,7 @@ export default function App() {
 
             {activeModal && (
                 <Modal onClose={() => {setActiveModal(null); setModalData(null);}}>
-                    {activeModal === 'login' && <AuthModal setUsers={setAllUsers} allUsers={allUsers} onLogin={setCurrentUser} onGuest={() => setActiveModal(null)} onClose={() => setActiveModal(null)} />}
+                    {activeModal === 'login' && <AuthModal allUsers={allUsers} onLogin={setCurrentUser} onClose={() => setActiveModal(null)} />}
                     {activeModal === 'itemDetail' && <ItemDetailModal item={modalData as MenuItem} onAddToCart={addToCart} />}
                     {activeModal === 'confirm' && <OrderConfirmation order={modalData as Order} onTrack={() => { setActiveModal(null); setModalData(modalData); handleNavigation('tracking'); }} />}
                     {activeModal === 'aiChat' && <AiAssistantModal menuItems={menuItems} cart={cart} cartTotal={cartTotal} findItemAndAddToCart={findItemAndAddToCart} />}
@@ -786,12 +788,13 @@ const Leaderboard: React.FC = () => {
         <div className="max-w-2xl mx-auto animate-fadeInUp">
             <h1 className="text-3xl font-bold mb-6 text-center">Spud Points Leaderboard</h1>
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
-                {/* FIX: Provide a fallback value of 0 for potentially undefined `spudPoints` to prevent a type error during the sort comparison. */}
+                {/* FIX: The `spudPoints` property can be undefined for items in `LEADERBOARD_DATA`. Added a fallback value of 0 to prevent a runtime error during the sort comparison. */}
                 {[...LEADERBOARD_DATA].sort((a,b) => (b.spudPoints ?? 0) - (a.spudPoints ?? 0)).map((user, index) => (
                     <div key={index} className={`flex items-center p-4 gap-4 ${index % 2 !== 0 ? 'bg-brand-cream/50' : ''}`}>
                         <span className={`font-bold text-lg w-10 text-center ${index < 3 ? 'text-brand-orange' : ''}`}>{['🥇', '🥈', '🥉'][index] || `${index + 1}.`}</span>
-                        <span className="flex-grow font-semibold">{user.name}</span>
-                        <span className="font-bold text-brand-orange">{user.spudPoints} pts</span>
+                        {/* FIX: Handle potentially undefined name and spudPoints to avoid rendering issues and provide sensible defaults. */}
+                        <span className="flex-grow font-semibold">{user.name ?? 'Unknown User'}</span>
+                        <span className="font-bold text-brand-orange">{user.spudPoints ?? 0} pts</span>
                     </div>
                 ))}
             </div>
@@ -1015,9 +1018,7 @@ const CartSidebar: React.FC<{show: boolean; onClose: () => void; cart: CartItem[
 
 interface AuthModalProps {
     allUsers: User[];
-    setUsers: React.Dispatch<React.SetStateAction<User[]>>;
     onLogin: (user: User) => void;
-    onGuest: () => void;
     onClose: () => void;
 }
 const AuthModal: React.FC<AuthModalProps> = ({ allUsers, onLogin, onClose }) => {
@@ -1205,9 +1206,13 @@ interface AiAssistantModalProps {
     cartTotal: number;
     findItemAndAddToCart: (itemName: string, quantity: number) => boolean;
 }
+interface ChatPart {
+  text?: string;
+  functionCall?: FunctionCall;
+}
 const AiAssistantModal: React.FC<AiAssistantModalProps> = ({ menuItems, cart, cartTotal, findItemAndAddToCart }) => {
     const [chat, setChat] = useState<Chat | null>(null);
-    const [history, setHistory] = useState<{ role: 'user' | 'model' | 'function'; parts: any[] }[]>([]);
+    const [history, setHistory] = useState<{ role: 'user' | 'model'; parts: ChatPart[] }[]>([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -1290,7 +1295,18 @@ const AiAssistantModal: React.FC<AiAssistantModalProps> = ({ menuItems, cart, ca
                 {history.map((msg, index) => (
                     <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[80%] p-3 rounded-lg ${msg.role === 'user' ? 'bg-brand-orange text-white' : 'bg-gray-200'}`}>
-                           {msg.parts.map((part, i) => <p key={i}>{part.text}</p>)}
+                           {msg.parts.map((part, i) => {
+                               if (part.text) {
+                                   return <p key={i}>{part.text}</p>;
+                               } else if (part.functionCall) {
+                                   return (
+                                       <div key={i} className="text-xs italic text-gray-600 bg-white/50 p-2 rounded">
+                                            <p>Calling tool: <code>{part.functionCall.name}</code></p>
+                                       </div>
+                                   );
+                               }
+                               return null;
+                           })}
                         </div>
                     </div>
                 ))}
