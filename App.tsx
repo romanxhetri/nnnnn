@@ -1,7 +1,4 @@
 
-
-
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
@@ -116,6 +113,19 @@ const StarIcon: React.FC<{ className?: string }> = ({ className }) => (
 
 // MAIN APP COMPONENT
 export default function App() {
+    // API Key check for deployment environments
+    if (!process.env.API_KEY) {
+        return (
+            <div className="flex items-center justify-center h-screen bg-brand-cream">
+                <div className="text-center p-8 bg-white shadow-lg rounded-lg border-2 border-red-300">
+                    <h1 className="text-2xl font-bold text-red-600">Configuration Error</h1>
+                    <p className="mt-2 text-brand-dark">The AI features cannot be initialized because the API key is missing.</p>
+                    <p className="mt-2 text-gray-600">Please make sure the <code className="bg-red-100 text-red-800 p-1 rounded">API_KEY</code> environment variable is set in your Netlify deployment settings.</p>
+                </div>
+            </div>
+        );
+    }
+    
     // STATE MANAGEMENT
     const [currentUser, setCurrentUser] = useLocalStorage<User | null>('currentUser', null);
     const [allUsers, setAllUsers] = useLocalStorage<User[]>('allUsers', USERS);
