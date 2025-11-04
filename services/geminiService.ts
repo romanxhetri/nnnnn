@@ -2,11 +2,13 @@
 import { GoogleGenAI, Type, Chat, LiveSession, LiveServerMessage, Modality } from "@google/genai";
 import { MenuItem } from '../types';
 
-if (!process.env.API_KEY) {
+const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : undefined;
+
+if (!apiKey) {
     console.warn("API_KEY environment variable not set. AI features will not work.");
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+const ai = new GoogleGenAI({ apiKey: apiKey || "" });
 
 export const getChefRecommendation = async (menu: MenuItem[], query: string) => {
     try {
